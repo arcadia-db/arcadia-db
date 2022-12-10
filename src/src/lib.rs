@@ -1,3 +1,3 @@
 pub mod shared;
-pub mod query_plan;
-pub mod buffer_pool_manager;
+mod query_plan;
+mod buffer_pool_manager;
