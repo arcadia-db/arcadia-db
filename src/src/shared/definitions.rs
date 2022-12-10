@@ -22,6 +22,7 @@ pub mod page {
 
     impl<'a> Page<'a> {
         pub fn new_safe(id: PageId, size: usize, data: &'a [u8]) -> Self {
+            assert!(size > 0);
             Self {
                 id,
                 size,
@@ -32,6 +33,8 @@ pub mod page {
         /// # Safety
         /// The number of bytes in the array pointed to by `data` must be equal to `size`.
         pub unsafe fn new_unsafe(id: PageId, size: usize, data: *const u8) -> Self {
+            assert!(size > 0);
+            assert!(!data.is_null());
             Self {
                 id,
                 size,
@@ -46,12 +49,12 @@ pub mod page {
         /// # Safety
         /// The value of `index` must be less than `self.size`.
         pub fn index(&self, index: usize) -> Option<u8> {
-            match self.data {
-                PageData::Safe(safe) => Some(safe[index]),
-                PageData::Unsafe(r#unsafe) => {
-                    if index >= self.size {
-                        None
-                    } else {
+            if index >= self.size {
+                None
+            } else {
+                match self.data {
+                    PageData::Safe(safe) => Some(safe[index]),
+                    PageData::Unsafe(r#unsafe) => {
                         Some(unsafe { *r#unsafe.offset(index.try_into().ok()?).as_ref().unwrap() })
                     }
                 }

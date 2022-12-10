@@ -1,3 +1,6 @@
+#![allow(dead_code)]
+
 pub mod shared;
-mod query_plan;
+
 mod buffer_pool_manager;
+mod query_plan;

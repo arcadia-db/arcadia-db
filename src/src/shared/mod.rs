@@ -1,2 +1,2 @@
-pub mod definitions;
 pub mod contracts;
+pub mod definitions;
