@@ -12,7 +12,7 @@ We welcome contributions to ArcadiaDB! Here are some guidelines to help you get 
 
 ## License
 
-By contributing to ArcadiaDB, you agree that your contributions will be licensed under the [LICENSE](LICENSE) file in the root of the repository.
+By contributing to ArcadiaDB, you agree that your contributions will be licensed under the [LICENSE](LICENSE.txt) file in the root of the repository.
 
 ## Questions
 
