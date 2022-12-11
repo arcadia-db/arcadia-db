@@ -1,72 +1,115 @@
-use super::{frame_buffer::*, page_table::*};
-use crate::shared::definitions::{page::*, *};
+use crate::shared::{
+    contracts::*,
+    definitions::{page::*, *},
+};
+use std::{collections::*, sync::*};
 
 #[derive(Debug)]
-pub struct BufferPool {
-    frame_buffer: FrameBuffer,
-    page_table: PageTable,
+/* private */
+struct FrameBuffer {
+    pub page_size: usize,
+    pub entries_count: usize,
+    buffer: Vec<u8>,
 }
 
-impl BufferPool {
-    pub fn new(page_size: usize) -> Self {
+impl FrameBuffer {
+    pub fn new(page_size: usize, entries_count: usize) -> Self {
+        assert!(page_size > 0);
+        assert!(entries_count > 0);
         Self {
-            frame_buffer: FrameBuffer::new(page_size),
-            page_table: PageTable::default(),
+            page_size,
+            entries_count,
+            buffer: vec![0x00u8; page_size * entries_count],
         }
     }
+}
 
-    pub fn get_page(&self, page_id: PageId) -> Option<Page<'_>> {
-        let page_table_item = self.page_table.get_item(page_id.clone())?;
-        let page_data = self
-            .frame_buffer
-            .get_page_data(page_table_item.frame_buffer_index)?;
-        Some(Page::new_safe(
-            page_id,
-            self.frame_buffer.page_size,
-            page_data,
-        ))
+#[derive(Debug)]
+/* private */
+enum PageState {
+    Clean,
+    Dirty,
+}
+
+#[derive(Debug)]
+/* private */
+struct PageTableItem {
+    pub pinned_count: usize,
+    pub access_count: usize,
+    pub state: PageState,
+    pub frame_buffer_index: usize,
+}
+
+impl PageTableItem {
+    pub fn new(frame_buffer_index: usize) -> Self {
+        Self {
+            pinned_count: 0,
+            access_count: 0,
+            state: PageState::Clean,
+            frame_buffer_index,
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct BufferPoolImpl {
+    frame_buffer: FrameBuffer,
+    page_table: RwLock<HashMap<PageId, RwLock<PageTableItem>>>,
+}
+
+impl BufferPoolImpl {
+    pub fn new(page_size: usize, entries_count: usize) -> Self {
+        Self {
+            frame_buffer: FrameBuffer::new(page_size, entries_count),
+            page_table: RwLock::new(HashMap::new()),
+        }
+    }
+}
+
+impl BufferPool for BufferPoolImpl {
+    fn contains_page(&self, page_id: PageId) -> bool {
+        let page_table = self.page_table.read().unwrap();
+        page_table.contains_key(&page_id)
     }
 
-    /// # Safety
-    /// The buffer pool must contain `page_id`.
-    pub fn set_pin_page(&mut self, page_id: PageId, pinned: bool) {
-        self.page_table.get_item_mut(page_id).unwrap().pinned = pinned;
+    fn get_page(&self, page_id: PageId) -> Page<'_> {
+        let page_table = self.page_table.read().unwrap();
+        let page_table_item = page_table.get(&page_id).unwrap();
+        let mut page_table_item = page_table_item.write().unwrap();
+
+        page_table_item.access_count += 1;
+
+        let frame_buffer_index = page_table_item.frame_buffer_index;
+
+        todo!()
     }
 
-    /* private */
-    fn get_index(&mut self, page_id: PageId) -> usize {
-        let index: usize;
+    fn set_page_pin(&self, page_id: PageId, pinned: bool) {
+        let page_table = self.page_table.read().unwrap();
+        let page_table_item = page_table.get(&page_id).unwrap();
+        let mut page_table_item = page_table_item.write().unwrap();
 
-        if let Some(page_table_item) = self.page_table.get_item_mut(page_id.clone()) {
-            // Page already in Buffer Pool
-            index = page_table_item.frame_buffer_index;
-            page_table_item.ref_count += 1;
+        if pinned {
+            page_table_item.pinned_count += 1;
         } else {
-            // Need to load Page into Buffer Pool
-            if let Some(free_index) = self.frame_buffer.find_first_free_index() {
-                index = free_index;
-            } else {
-                // Evict Pages when no free space in the Frame Buffer
-                todo!()
-            }
-
-            self.page_table.insert(page_id, index);
+            page_table_item.pinned_count -= 1;
         }
-
-        index
     }
 
-    /// # Safety
-    /// `data` must point to an array of size `self.frame_buffer.page_size`.
-    pub fn safe_load_page(&mut self, page_id: PageId, data: &[u8]) {
-        let index = self.get_index(page_id);
-        self.frame_buffer.safe_load_page(index, data);
+    fn load_page(&self, page_id: PageId, data: Vec<u8>) {
+        todo!()
     }
 
-    /// # Safety
-    /// `data` must point to an array of size `self.frame_buffer.page_size`.
-    pub unsafe fn unsafe_load_page(&mut self, page_id: PageId, data: *const u8) {
-        let index = self.get_index(page_id);
-        self.frame_buffer.unsafe_load_page(index, data);
+    fn mutate_page(&self, page_id: PageId, offset: usize, data: Vec<u8>) {
+        let page_table = self.page_table.read().unwrap();
+        let page_table_item = page_table.get(&page_id).unwrap();
+        let mut page_table_item = page_table_item.write().unwrap();
+
+        page_table_item.access_count += 1;
+        page_table_item.state = PageState::Dirty;
+
+        let frame_buffer_index = page_table_item.frame_buffer_index;
+
+        todo!()
     }
 }
