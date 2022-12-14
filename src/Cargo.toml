@@ -7,3 +7,5 @@ edition = "2021"
 crate-type = ["rlib", "cdylib"]
 
 [dependencies]
+parking_lot = "0.12.1"
+rand = "0.8.5"
