@@ -52,7 +52,7 @@ impl FileIO {
     }
 
     #[cfg(target_os = "linux")]
-    fn open_file(path: String, write: bool, create: bool) -> io::Result<File> {
+    pub fn open_file(path: String, write: bool, create: bool) -> io::Result<File> {
         use nix::libc;
         use std::os::unix::prelude::OpenOptionsExt;
 
@@ -68,13 +68,9 @@ impl FileIO {
             .custom_flags(flags)
             .read(true)
             .write(write)
+            .create(create)
             .open(&path);
 
-        if file.is_err() {
-            return file;
-        }
-
-        let file_fd = file.as_ref().unwrap().as_raw_fd();
         file
     }
 }
@@ -100,7 +96,7 @@ mod tests {
     macro_rules! set_up_files {
         ($($x:expr),+ $(,)?) => {
             let _tmp = TmpFiles{paths: vec![$($x.to_string()),+]};
-        }
+        };
     }
 
     #[test]
@@ -125,7 +121,7 @@ mod tests {
         let file = file.unwrap();
 
         let buf = "hello world\n".as_bytes();
-        let res = FileIO::write(&file, &buf, 0);
+        let res = FileIO::write(&file, buf, 0);
         assert!(res.is_ok());
 
         // use std to check result
