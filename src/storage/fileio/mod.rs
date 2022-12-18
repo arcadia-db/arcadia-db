@@ -113,7 +113,7 @@ mod tests {
     fn open_file_create() {
         set_up_files!("test2");
 
-        let file = FileIO::open_file("test2".to_string(), false, true);
+        let file = FileIO::open_file("test2".to_string(), true, true);
         assert!(file.is_ok());
     }
 
