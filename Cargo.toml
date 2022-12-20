@@ -7,3 +7,7 @@ edition = "2021"
 crate-type = ["rlib", "cdylib"]
 
 [dependencies]
+dashmap = "5.4.0"
+nix = "0.26.1"
+parking_lot = "0.12.1"
+rand = "0.8.5"
