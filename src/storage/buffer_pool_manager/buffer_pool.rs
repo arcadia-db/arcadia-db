@@ -1,7 +1,7 @@
 use self::contracts::{BufferPool, BufferPoolKey, PageReadLock};
 use crate::shared::definitions::{PageId, TableId};
 use dashmap::DashMap;
-use parking_lot::{lock_api::RawRwLock, RawRwLock as PLRawRwLock, RwLock};
+use parking_lot::{lock_api::RawRwLock, Mutex, RawRwLock as PLRawRwLock, RwLock};
 use std::{cell::UnsafeCell, ops::Range};
 
 pub mod contracts {
@@ -70,7 +70,7 @@ enum PageTableItemMetadataFlagsMasks {
 /* private */
 struct PageTableItemMetadataFlags(u8);
 
-macro_rules! create_page_table_item_flags_get_set {
+macro_rules! create_page_table_item_metadata_flags_get_set {
     ($mask: expr, $get_name: ident, $set_name: ident) => {
         pub const fn $get_name(&self) -> bool {
             (self.0 & ($mask as u8)) != 0
@@ -87,7 +87,7 @@ macro_rules! create_page_table_item_flags_get_set {
 }
 
 impl PageTableItemMetadataFlags {
-    create_page_table_item_flags_get_set!(
+    create_page_table_item_metadata_flags_get_set!(
         PageTableItemMetadataFlagsMasks::IsDirty,
         get_is_dirty,
         set_is_dirty
@@ -97,8 +97,8 @@ impl PageTableItemMetadataFlags {
 #[derive(Default, Debug)]
 /* private */
 struct PageTableItemMetadata {
-    pin_count: usize,
     access_count: usize,
+    pin_count: usize,
     flags: PageTableItemMetadataFlags,
 }
 
@@ -106,10 +106,10 @@ struct PageTableItemMetadata {
 /* private */
 enum PageTableItem {
     Free {
-        next_free_index: RwLock<Option<usize>>,
+        next_free_index: Mutex<Option<usize>>,
     },
     Occupied {
-        metadata_lock: RwLock<PageTableItemMetadata>,
+        metadata: Mutex<PageTableItemMetadata>,
         frame_lock: RwLock<()>,
     },
 }
@@ -117,13 +117,13 @@ enum PageTableItem {
 impl PageTableItem {
     pub fn new_free(next_free_index: Option<usize>) -> Self {
         Self::Free {
-            next_free_index: RwLock::new(next_free_index),
+            next_free_index: Mutex::new(next_free_index),
         }
     }
 
     pub fn new_occupied() -> Self {
         Self::Occupied {
-            metadata_lock: RwLock::new(PageTableItemMetadata::default()),
+            metadata: Mutex::new(PageTableItemMetadata::default()),
             frame_lock: RwLock::new(()),
         }
     }
@@ -132,7 +132,7 @@ impl PageTableItem {
 #[derive(Debug)]
 /* private */
 struct PageTable {
-    root: RwLock<usize>,
+    root: Mutex<usize>,
     table: UnsafeCell<Vec<RwLock<PageTableItem>>>,
 }
 
@@ -141,7 +141,7 @@ impl PageTable {
         assert!(entries_count > 0);
 
         Self {
-            root: RwLock::new(0),
+            root: Mutex::new(0),
             // TODO: Look into eager initializing this.
             table: UnsafeCell::new(Vec::with_capacity(entries_count)),
         }
@@ -216,7 +216,7 @@ impl BufferPool for BufferPoolImpl {
                 unsafe { page_table_item_read_lock_data.as_ref().unwrap() };
 
             // Safety: We have a read lock over `page_table_item_read_lock`.
-            let PageTableItem::Occupied { metadata_lock, frame_lock } = page_table_item_read_lock_data_ref else { panic!("Not occupied!") };
+            let PageTableItem::Occupied { metadata, frame_lock } = page_table_item_read_lock_data_ref else { panic!("Not occupied!") };
             let frame_read_lock_raw = unsafe { frame_lock.raw() };
             frame_read_lock_raw.lock_shared();
 
@@ -227,8 +227,8 @@ impl BufferPool for BufferPoolImpl {
                 .unwrap();
 
             {
-                let mut page_table_item_metadata_write_lock = metadata_lock.write();
-                page_table_item_metadata_write_lock.access_count += 1;
+                let mut page_table_item_metadata_lock = metadata.lock();
+                page_table_item_metadata_lock.access_count += 1;
             }
 
             PageReadLock::new(page_table_item_read_lock_raw, frame_read_lock_raw, data)
@@ -250,7 +250,7 @@ impl BufferPool for BufferPoolImpl {
 
         let page_table_item_read_lock = page_table_item_lock.read();
 
-        let PageTableItem::Occupied { ref frame_lock, ref metadata_lock } = *page_table_item_read_lock else { panic!("Not occupied!") };
+        let PageTableItem::Occupied { ref metadata, ref frame_lock } = *page_table_item_read_lock else { panic!("Not occupied!") };
         let frame_write_lock = frame_lock.write();
 
         // Safety: We have a write lock over `frame_write_lock`.
@@ -261,9 +261,9 @@ impl BufferPool for BufferPoolImpl {
             .copy_from_slice(&data);
 
         {
-            let mut page_table_item_metadata_write_lock = metadata_lock.write();
-            page_table_item_metadata_write_lock.access_count += 1;
-            page_table_item_metadata_write_lock.flags.set_is_dirty(true);
+            let mut page_table_item_metadata_lock = metadata.lock();
+            page_table_item_metadata_lock.access_count += 1;
+            page_table_item_metadata_lock.flags.set_is_dirty(true);
         }
     }
 }
@@ -309,8 +309,8 @@ mod tests {
             }
 
             {
-                let mut page_table_root_write_lock = buffer_pool.page_table.root.write();
-                *page_table_root_write_lock = 2;
+                let mut page_table_root_lock = buffer_pool.page_table.root.lock();
+                *page_table_root_lock = 2;
             }
 
             {
