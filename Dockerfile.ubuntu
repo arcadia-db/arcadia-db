@@ -1,0 +1,9 @@
+FROM ubuntu:20.04
+# VOLUME [ "/app" ]
+WORKDIR /app
+RUN apt update && apt upgrade
+RUN apt install -y build-essential
+RUN apt install -y curl
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+COPY . .
+CMD ["~/.cargo/bin/cargo"]
