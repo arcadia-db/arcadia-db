@@ -1,0 +1,7 @@
+FROM ubuntu:22.04
+WORKDIR /app
+RUN apt update && apt upgrade && apt install -y build-essential cargo
+COPY . .
+# downloads the dependencies locally
+RUN cargo fetch
+CMD ["cargo", "test"]

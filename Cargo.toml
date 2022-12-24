@@ -7,3 +7,4 @@ edition = "2021"
 crate-type = ["rlib", "cdylib"]
 
 [dependencies]
+nix = "0.26.1"
