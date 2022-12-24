@@ -1,0 +1,9 @@
+FROM ubuntu:20.04
+WORKDIR /app
+RUN apt update && apt upgrade
+RUN apt install -y build-essential
+RUN apt install -y cargo
+COPY . .
+# downloads the dependencies locally
+RUN cargo fetch
+CMD ["cargo", "test"]

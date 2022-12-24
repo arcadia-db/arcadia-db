@@ -5,7 +5,7 @@ use std::{fs::File, io};
 
 use super::FileIO;
 
-pub struct UnixFileIO {}
+pub struct UnixFileIO;
 
 impl UnixFileIO {
     #[cfg(target_os = "macos")]

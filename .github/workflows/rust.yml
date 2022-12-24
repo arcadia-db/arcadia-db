@@ -26,13 +26,9 @@ jobs:
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
       - name: Build
         run: cargo build --verbose
-        working-directory: ./src
       - name: Format
         run: cargo fmt --all --check
-        working-directory: ./src
       - name: Clippy
         run: cargo clippy --verbose
-        working-directory: ./src
       - name: Test
         run: cargo test --verbose
-        working-directory: ./src
