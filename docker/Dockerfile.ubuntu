@@ -1,8 +1,6 @@
 FROM ubuntu:22.04
 WORKDIR /app
-RUN apt update && apt upgrade
-RUN apt install -y build-essential
-RUN apt install -y cargo
+RUN apt update && apt upgrade && apt install -y build-essential cargo
 COPY . .
 # downloads the dependencies locally
 RUN cargo fetch
